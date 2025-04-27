@@ -3,9 +3,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-
+//É possível alterar o número aqui para verificar a flexibilidade do código
 #define N_CLIENTES 25
-#define N_BARMANS 3
+#define N_BARMANS 2
 #define N_CADEIRAS 3
 
 typedef enum {A, W, B, S, E, L} estado_cliente;  // A: chegou, W: esperando, B: bebendo, S: saiu, E: encerrado, L: largou
@@ -19,7 +19,7 @@ tipo_bebida bebidaCliente[N_CLIENTES];
 int clientesCadeira[N_CADEIRAS];
 int clientesServidos[N_BARMANS];
 
-estado_cliente estadoBarman[N_BARMANS]; // B ou S
+estado_cliente estadoBarman[N_BARMANS]; // B (servindo) ou S (dormindo)
 
 tipo_bebida bebidaAtual;
 int bebidaEmUso = 0;
@@ -34,18 +34,30 @@ sem_t sem_barman[N_BARMANS];
 
 void imprimeEstado() {
     sem_wait(&mutex_impressao);
+    printf("\033[H\033[J");
     printf("\n============= ESTADO DO BAR =============\n");
+    //Imprime o tipo da bebida e se não tiver ninguém, printa "nenhuma"
     printf("Tipo de bebida sendo servida: %s\n", bebidaEmUso ? bebidaStr[bebidaAtual] : "Nenhuma");
 
     printf("\nClientes:\n");
     for (int i = 0; i < N_CLIENTES; i++) {
+        //Caso o cliente ainda não tenha sido criado, seu tipo de bebida ainda não foi definido
+        if (estadoC[i]== E)
+        {
+            printf("C%02d [%s| ]  ", i, estadoClienteStr[estadoC[i]]);
+            //Pula a linha depois de cinco clientes
+            if ((i+1)%5==0) printf("\n");
+        }else{
+        
         printf("C%02d [%s|%s]  ", i, estadoClienteStr[estadoC[i]], bebidaStr[bebidaCliente[i]]);
         if ((i+1)%5==0) printf("\n");
+        }
     }
 
     printf("\n\nCadeiras de espera: ");
     for (int i = 0; i < N_CADEIRAS; i++) {
         if (clientesCadeira[i] == -1) printf("[   ] ");
+        //Printa o cliente da cadeira.
         else printf("[C%02d] ", clientesCadeira[i]);
     }
 
@@ -62,19 +74,20 @@ void imprimeEstado() {
 
 void* cliente(void* arg) {
     int id = *(int*)arg;
+    //Cria o cliente e define sua bebida aleatoriamente, seu estado vira A
     bebidaCliente[id] = rand() % 2;
     estadoC[id] = A;
     imprimeEstado();
     sleep(rand()%3);
-
+    //Se tem cadeiras começa o processo
     if (sem_trywait(&sem_cadeiras) == 0) {
         sem_wait(&mutex_bebida);
-
+        //Se o bar não está servindo nenhum tipo de bebida, o tipo vira o do cliente
         if (!bebidaEmUso) {
             bebidaAtual = bebidaCliente[id];
             bebidaEmUso = 1;
         }
-
+        //Se for outro tipo ele larga
         if (bebidaCliente[id] != bebidaAtual) {
             sem_post(&mutex_bebida);
             estadoC[id] = L;
@@ -85,7 +98,7 @@ void* cliente(void* arg) {
 
         clientesNoBar++;
         sem_post(&mutex_bebida);
-
+        //Senta na cadeira e espera ser servido
         estadoC[id] = W;
         for (int i = 0; i < N_CADEIRAS; i++) {
             if (clientesCadeira[i] == -1) {
@@ -96,12 +109,12 @@ void* cliente(void* arg) {
         imprimeEstado();
 
         sem_wait(&sem_cliente[id]);
-
+        //Começa a ser servido
         estadoC[id] = B;
         imprimeEstado();
 
         sleep(rand()%3 + 1);
-
+        //Sai depois de um tempo
         estadoC[id] = S;
         imprimeEstado();
 
@@ -114,6 +127,7 @@ void* cliente(void* arg) {
 
         sem_post(&sem_cadeiras);
     } else {
+    //Larga se não tiver cadeiras
         estadoC[id] = L;
         imprimeEstado();
     }
@@ -124,6 +138,7 @@ void* cliente(void* arg) {
 void* barman(void* arg) {
     int id = *(int*)arg;
     while (1) {
+        //Vê se tem clientes esperando
         sem_wait(&mutex_contador);
         int cid = -1;
         for (int i = 0; i < N_CADEIRAS; i++) {
@@ -136,6 +151,7 @@ void* barman(void* arg) {
         sem_post(&mutex_contador);
 
         if (cid != -1) {
+            //Chama o cliente que estava esperando, muda seu estado pra B e serve o cliente, depois volta a dormir
             estadoBarman[id] = B;
             clientesServidos[id] = cid;
             imprimeEstado();
@@ -145,6 +161,7 @@ void* barman(void* arg) {
             clientesServidos[id] = -1;
             imprimeEstado();
         } else {
+            //Se não tem cliente continua dormindo
             estadoBarman[id] = S;
             clientesServidos[id] = -1;
             imprimeEstado();
@@ -154,7 +171,7 @@ void* barman(void* arg) {
     return NULL;
 }
 
-int main() {
+int main() { //Criação dos semáforos e threads
     srand(time(NULL));
     pthread_t thr_clientes[N_CLIENTES], thr_barmans[N_BARMANS];
     int id_cl[N_CLIENTES], id_bm[N_BARMANS];
