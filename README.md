@@ -31,7 +31,7 @@ Compile o programa em C:
 ```bash
 gcc -o bar barman.c -lpthread
 ```
-Rodar o programa:
+Execute o programa:
 ```bash
 
 ./bar
