@@ -38,4 +38,4 @@ Execute o programa:
 ```
 
 ## Documentação
-Para uma explicação detalhada da implementação, incluindo os estados, fluxo do programa e mecanismos de sincronização, consulte o arquivo [documentacao.pdf](documentacao.pdf) neste repositório.
+Para uma explicação detalhada da implementação, incluindo os estados, fluxo do programa e mecanismos de sincronização, consulte a [documentação](documentacao.pdf) neste repositório.
